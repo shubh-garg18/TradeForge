@@ -2,3 +2,9 @@
 test_engine
 .vscode/
 build/
+
+# claude suggestion log
+response.txt
+final.txt
+
+interview practice/.markdownlint.json
