@@ -115,6 +115,10 @@ OPEN    → OPEN / PARTIALLY_FILLED / COMPLETED / CANCELLED  (after trigger, sam
 
 ---
 
+> **Known limitation:** a pending (untriggered) stop order cannot be cancelled. `cancel_order` only covers orders resting on the book — `pending_stops` has no cancellation path yet. Tracked alongside the planned `StopOrderManager` refactor.
+
+---
+
 ## Comparison Table
 
 | Type       | Rests | Guaranteed fill | Cancels remainder | Stop condition |

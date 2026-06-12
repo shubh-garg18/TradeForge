@@ -11,24 +11,26 @@ The engine is built around a single `OrderBook` owned by a `MatchingEngine`. All
 ## Component Map
 
 ```text
+                ┌────────────────────┐
+                │     EventQueue     │
+                │ (async submission) │
+                └─────────┬──────────┘
+                          │  pop (single worker)
+                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      MatchingEngine                         │
 │  process_order → matching_loop → generate_trades           │
 │  check_stop_orders (after every fill)                      │
-└──────────────────────┬──────────────────────────────────────┘
-                       │  owns reference to
-                       ▼
-              ┌────────────────────┐
-              │     OrderBook      │
-              │  bids  (map ↓)     │
-              │  asks  (map ↑)     │
-              │  orders (hash map) │
-              │  pending_stops     │
-              └──────┬─────────────┘
-                     │
-          ┌──────────┼──────────────┐
-          ▼          ▼              ▼
-   TradePublisher  EventQueue   FeeCalculator
+└───────┬──────────────────┬───────────────────┬──────────────┘
+        │ owns ref to      │ owns ref to       │ publishes to
+        ▼                  ▼                   ▼
+┌────────────────────┐ ┌───────────────┐ ┌────────────────┐
+│     OrderBook      │ │ FeeCalculator │ │ TradePublisher │
+│  bids  (map ↓)     │ └───────────────┘ └────────────────┘
+│  asks  (map ↑)     │
+│  orders (hash map) │
+│  pending_stops     │
+└────────────────────┘
 ```
 
 ---
@@ -67,7 +69,7 @@ Interface decoupling the matching loop from downstream consumers. Register with 
 
 ### FeeCalculator
 
-Tracks cumulative notional volume per order ID and selects the fee tier at trade time. Maker (resting) orders earn a rebate; taker (incoming) orders pay a fee. Tier lookup and volume update happen inside `generate_trades`, not in the hot matching loop.
+Tracks cumulative notional volume per user ID and selects the fee tier at trade time. Taker (incoming) orders pay a fee; maker (resting) orders pay nothing at the base tier and earn a rebate at higher volume tiers. Self-matches (same user on both sides) do not accumulate volume. Tier lookup and volume update happen inside `generate_trades`, not in the hot matching loop.
 
 ### Market Data
 

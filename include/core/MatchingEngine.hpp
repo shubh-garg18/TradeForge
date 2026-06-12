@@ -1,7 +1,7 @@
 /*
 Invariants:
 1. Matching loop lives in this file.
-2. Matching Engine is a singleton.
+2. One MatchingEngine instance owns exactly one OrderBook (single-writer).
 */
 
 #ifndef MATCHING_ENGINE_HPP

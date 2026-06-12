@@ -44,7 +44,7 @@ Let L = crossed price levels, K = resting orders consumed.
 Key properties:
 - No scanning of irrelevant levels
 - FIFO removal is O(1) via intrusive linked list
-- No heap allocation inside the matching loop
+- No unbounded heap allocation inside the matching loop (the only growth is the amortized O(1) trade-record append)
 
 ---
 
@@ -121,7 +121,7 @@ matching_loop
   └─ remove_price_level      ← map erase + BBO refresh, O(log P) if level emptied
 ```
 
-**Memory access pattern:** PriceLevel pointers are stable. FIFO list traversal within a level is sequential. No vector growth inside the loop. Trade append is amortized O(1).
+**Memory access pattern:** PriceLevel pointers are stable. FIFO list traversal within a level is sequential. The only container growth on the path is the trade-record append, which is amortized O(1).
 
 The loop is designed for strong cache locality and minimal branching on the critical path.
 
@@ -159,7 +159,7 @@ The following must hold for the engine to meet its complexity guarantees:
 
 - No empty price levels retained after fill or cancel
 - FIFO order enforced via intrusive linked list within each level
-- No heap allocation inside `matching_loop`
+- No unbounded heap allocation inside `matching_loop` (trade append is amortized O(1))
 - No book mutation on FOK failure (pre-scan only)
 - BBO pointers refreshed on every structural operation
 - `pending_stops` scan happens only after a fill, never inside `matching_loop`

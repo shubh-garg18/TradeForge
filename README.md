@@ -54,7 +54,7 @@ book.cancel_order("S1"); // cancel resting remainder
 
 ```cpp
 Order ask("seller", "S1", Side::SELL, OrderType::LIMIT, 100.0, 10, TimeUtils::now_ns());
-Order buy("buyer",  "B1", Side::BUY,  OrderType::MARKET, 6,        TimeUtils::now_ns());
+Order buy("B1", Side::BUY, OrderType::MARKET, 6, TimeUtils::now_ns()); // user_id defaults
 
 book.insert_limit(&ask);
 engine.process_order(&buy); // sweeps at any price, never rests
@@ -108,7 +108,7 @@ worker.join();
 | Limit insert       | O(log P)   | P = active price levels       |
 | Market / IOC match | O(L + K)   | L = levels crossed, K = fills |
 | FOK                | O(L + K)   | Includes pre-scan             |
-| Cancel             | O(1)       | Hash lookup                   |
+| Cancel             | O(1) avg   | O(log P) if level emptied     |
 | BBO read           | O(1)       | Cached pointer                |
 | L2 snapshot        | O(D)       | D = requested depth           |
 | Stop trigger scan  | O(S)       | S = pending stops, per fill   |

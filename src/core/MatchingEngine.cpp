@@ -32,12 +32,12 @@ Trade MatchingEngine::generate_trades(uint64_t trade_qty, Order* incoming, Order
 
     //MAKER=Resting, TAKER=Incoming
     if(incoming->user_id!=resting->user_id){
-        fees_calculator.update_volume(resting->order_id, notional);
-        fees_calculator.update_volume(incoming->order_id, notional);        
+        fees_calculator.update_volume(resting->user_id, notional);
+        fees_calculator.update_volume(incoming->user_id, notional);
     }
 
-    double maker_fee=fees_calculator.maker_fee(resting->order_id, price, trade_qty);
-    double taker_fee=fees_calculator.taker_fee(incoming->order_id,price, trade_qty);
+    double maker_fee=fees_calculator.maker_fee(resting->user_id, price, trade_qty);
+    double taker_fee=fees_calculator.taker_fee(incoming->user_id,price, trade_qty);
 
     assert(taker_fee >= 0);
     assert(!std::isnan(maker_fee));
