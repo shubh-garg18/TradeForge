@@ -180,3 +180,74 @@ Breaking any of these invalidates the complexity claims above.
 | BBO write          | O(log P)            | Paid on every structural op            |
 | L2 snapshot        | O(D)                | D = requested depth                    |
 | Stop trigger scan  | O(S + T × (L + K)) | S = pending stops, T = triggered       |
+
+---
+
+## C.6 Empirical Micro-Benchmark
+
+The complexity bounds above are validated by `bench/Benchmark.cpp`, a
+micro-benchmark that times the real hot path — `MatchingEngine::process_order`
+— and nothing synthetic. Order allocation and book pre-load are excluded from
+the timed region (except the dedicated end-to-end scenario). Each scenario
+submits N orders and records per-order latency with `std::chrono::steady_clock`.
+
+**Build & run:**
+
+```
+cmake -DCMAKE_BUILD_TYPE=Release ..   # bench compiles with -O3 -march=native
+make bench
+./bench 1000000                       # default N = 1,000,000
+```
+
+### Scenarios
+
+| # | Scenario | What it isolates |
+| - | -------- | ---------------- |
+| 1 | Limit insert (resting, no match) | Pure book insertion at distinct levels — `std::map` insert O(log P) |
+| 2 | Match 1:1 (full fill + level erase) | Each taker empties a one-deep level → worst-case map-erase churn |
+| 3 | Match FIFO (deep single level) | All liquidity at one price → pure FIFO match + fee cost, no erase churn |
+| 4 | End-to-end (alloc + match) | Same as #3 but order construction is inside the timed region |
+
+### Results (N = 1,000,000)
+
+Measured on a developer laptop (WSL2, single thread, Release `-O3 -march=native`).
+Numbers are indicative, not a hardware spec sheet — treat them as relative
+signal between scenarios.
+
+| Scenario                            | orders/sec | p50 (µs) | p99 (µs) | mean (µs) |
+| ----------------------------------- | ---------: | -------: | -------: | --------: |
+| Limit insert (resting, no match)    |    ~951 K  |    0.65  |    3.19  |    1.05   |
+| Match 1:1 (full fill + level erase) |    ~2.02 M |    0.36  |    1.08  |    0.50   |
+| Match FIFO (deep single level)      |    ~5.03 M |    0.17  |    0.21  |    0.20   |
+| End-to-end (alloc + match)          |    ~2.13 M |    0.25  |    2.34  |    0.47   |
+
+### Reading the numbers
+
+- **FIFO matching is the fastest path** (~5.03 M orders/sec, p50 0.17 µs):
+  the deep single level stays a single `std::map` entry, so each match is
+  pure O(1) intrusive-list head pops and fee lookups — no tree growth, no
+  tree mutation, excellent cache locality. This is the engine at its best.
+- **Limit insert is the slowest** (~951 K orders/sec, p50 0.65 µs): it is the
+  one scenario whose `std::map` grows to a million distinct levels, so every
+  insert is an O(log P) descent into an ever-larger red-black tree plus a BBO
+  refresh, and the tree's pointer-chasing wrecks cache locality as it grows.
+  This is the `std::map` cost flagged in §C.3 surfacing under the *largest*
+  tree — exactly where the complexity model says it should hurt most.
+- **Level-churn matching and end-to-end sit in between** (~2 M orders/sec):
+  both touch the map per order, but on a working tree that is smaller and/or
+  shrinking on the timed path rather than the million-node tree that limit
+  insert builds up.
+- p99 is tight on a clean run (≤ ~3.2 µs across all scenarios), but **max**
+  latency reaches the tens of milliseconds — those are OS scheduling and
+  page-fault outliers on a non-isolated laptop core, not engine behavior.
+  Trust p50/p99, not max.
+- Run-to-run variance is significant on a shared laptop core: throughput and
+  the ranking *among the map-touching scenarios* shift between runs, and the
+  level-churn p99 in particular swings widely depending on scheduler noise.
+  The one stable result across every run is that FIFO is fastest by a wide
+  margin.
+
+The ranking — limit insert < level-churn ≈ end-to-end < FIFO — is consistent
+with the complexity model: the more (and the larger) the `std::map` structural
+operations a scenario drives, the more it costs, and the single-level path
+that avoids tree growth and mutation wins decisively.

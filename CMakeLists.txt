@@ -86,6 +86,16 @@ add_executable(engine
 target_link_libraries(engine PRIVATE core io fee_calculator utils)
 
 # ============================
+# Benchmark Executable
+# ============================
+add_executable(bench
+    bench/Benchmark.cpp
+)
+
+target_link_libraries(bench PRIVATE core fee_calculator utils)
+target_compile_options(bench PRIVATE -O3 -march=native)
+
+# ============================
 # Build Type Flags
 # ============================
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
